@@ -1,99 +1,80 @@
-# 🌻 Flores Amarillas
+# Flores Amarillas
 
-> Un detalle digital para regalar flores amarillas a alguien especial 💛
+Experiencia web interactiva: un ramo de flores amarillas crece sobre una galaxia, con luciérnagas y música, al primer toque de la pantalla.
 
-![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
-![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white)
-![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
+![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat-square&logo=html5&logoColor=white)
+![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=flat-square&logo=css3&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-ES6%20Modules-F7DF1E?style=flat-square&logo=javascript&logoColor=black)
 
----
+**Demo:** [yhojanlinux1-droid.github.io/flores-amarillas](https://yhojanlinux1-droid.github.io/flores-amarillas/)
 
-## ✨ ¿Qué es esto?
-
-Un pequeño proyecto web hecho con **HTML, CSS y JavaScript** para dedicar
-**flores amarillas** de forma virtual. Ideal para el **21 de marzo** o para
-cualquier momento en el que quieras sorprender a alguien.
-
-Inspirado en la tradición de regalar flores amarillas y en la canción
-*"Flores Amarillas"* de Floricienta 🌼
+Inspirada en la tradición de regalar flores amarillas. Vanilla JS, sin dependencias ni bundler.
 
 ---
 
-## 🎨 Características
+## Qué hace
 
-- 🌻 Flores amarillas animadas
-- 💛 Diseño responsive (se ve bien en celular y PC)
-- ✨ Animaciones suaves con CSS / JS
-- 🎁 Personalizable (puedes agregar un nombre o mensaje)
-- 🚀 Sin dependencias, solo abre el `index.html`
+1. Pantalla de inicio sobre un fondo de galaxia (nebulosas en CSS, estrellas y estrellas fugaces en Canvas) con el texto *No eres espectadora*.
+2. Al primer clic, toque o tecla (`Enter` / `Espacio`):
+   - el texto se desvanece;
+   - empieza `assets/audio/golden-hour.mp3` en bucle, con un fundido de volumen de 0 a 0.4 en 2.5 s (dentro del gesto del usuario, para cumplir la política de autoplay);
+   - crecen tres tallos y los pétalos se abren de forma escalonada.
+3. Ya abiertas, las flores se balancean con el viento y alrededor flotan luciérnagas doradas.
 
----
+El dibujo es procedural en Canvas 2D: pétalos con curvas Bézier en tres capas, gradientes, pistilo con semillas en espiral de Fibonacci y tallo de grosor variable.
 
-## 🚀 Cómo usarlo
+## Cómo ejecutarlo
 
-1. Clona el repositorio:
-   ```bash
-   git clone https://github.com/yhojanlinux1-droid/flores-amarillas.git
-   ```
+Los módulos ES no cargan abriendo el archivo directamente (`file://`). Hace falta un servidor estático.
 
-2. Entra a la carpeta:
-   ```bash
-   cd flores-amarillas
-   ```
+```bash
+git clone https://github.com/yhojanlinux1-droid/flores-amarillas.git
+cd flores-amarillas
+python -m http.server 8080
+```
 
-3. Abre el archivo `index.html` en tu navegador 🌐
-   (o usa **Live Server** en VS Code para recarga automática).
+Abre [http://localhost:8080](http://localhost:8080). En VS Code / Cursor, la extensión Live Server hace lo mismo.
 
----
-
-## 📂 Estructura del proyecto
+## Estructura
 
 ```
 flores-amarillas/
-├── index.html
+├── index.html              # Lienzos, capas de la galaxia y pantalla de inicio
 ├── css/
-│   └── styles.css
+│   └── style.css           # Galaxia, nebulosas, viñeta y tipografía
 ├── js/
-│   └── main.js
+│   ├── main.js             # Bucle, resize, viento, estrellas y arranque
+│   ├── classes/
+│   │   ├── Flower.js       # Flor procedural (tallo, pétalos, pistilo)
+│   │   └── Particle.js     # Luciérnagas
+│   └── utils/
+│       └── audio.js        # AudioPlayer: bucle y fade-in
 ├── assets/
-│   └── (imágenes, íconos, etc.)
+│   └── audio/
+│       └── golden-hour.mp3
 ├── .gitignore
 └── README.md
 ```
 
----
+## Personalizar
 
-## 🛠️ Personalización
+| Qué | Dónde |
+| --- | --- |
+| Textos de la intro | `index.html`, sección `#intro` |
+| Colores, fuentes y fondo | variables `:root` y gradientes en `css/style.css` |
+| Cantidad, altura, curvatura y retardo de las flores | arreglo `BOUQUET` en `js/main.js` |
+| Forma y color de los pétalos | arreglo `LAYERS` en `js/classes/Flower.js` |
+| Canción, volumen final y duración del fade-in | `new AudioPlayer(...)` en `js/main.js` |
+| Cantidad de luciérnagas | `fireflyCount()` en `js/main.js` |
 
-- **Cambiar el mensaje:** edita el texto dentro de `index.html`.
-- **Cambiar colores:** modifica las variables CSS en `:root` dentro de `styles.css`.
-- **Agregar más flores:** ajusta la lógica en `js/main.js`.
+La pista va en `assets/audio/`. Si cambias el nombre del archivo, actualiza la ruta que se pasa a `AudioPlayer`.
 
----
+## Licencia
 
-## 🌐 Demo
+[MIT](LICENSE). Úsalo, modifícalo y regálalo.
 
-> 🔗 [Ver demo en vivo](https://yhojanlinux1-droid.github.io/flores-amarillas/)
-
-*(Activa GitHub Pages en Settings → Pages → Branch: main)*
-
----
-
-## 🤝 Contribuciones
-
-Las contribuciones son bienvenidas. Si tienes una idea para mejorar el detalle,
-abre un **issue** o manda un **pull request** 💛
+La música de `assets/audio/` pertenece a sus autores; este repositorio solo la incluye como parte de la experiencia.
 
 ---
 
-## 📜 Licencia
-
-Este proyecto está bajo la licencia **MIT**. Úsalo, modifícalo y regálalo libremente.
-
----
-
-## 💌 Dedicatoria
-
-> *"Te regalo flores amarillas, para que nunca olvides lo mucho que te quiero."* 🌻
-
-Hecho con 💛 por [Yhojan Mendoza](https://github.com/yhojan2007)
+Hecho por [Yhojan Mendoza](https://github.com/yhojanlinux1-droid).
