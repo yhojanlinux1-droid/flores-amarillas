@@ -1,68 +1,120 @@
 /**
- * Utilidad de audio.
+ * AudioPlayer
  *
- * Crea un reproductor HTML5 <audio> configurado para reproducirse en bucle.
- * La reproducción DEBE iniciarse desde un gesto del usuario (click / touch)
- * para respetar las políticas de Autoplay de los navegadores. `play()` devuelve
- * la promesa de `HTMLMediaElement.play()` ya protegida con `.catch`, de modo
- * que un rechazo (autoplay bloqueado, archivo ausente) nunca rompa la app.
+ * Reproductor HTML5 <audio> en bucle con fade-in por código.
  *
- * @param {string} src Ruta del archivo de audio (p. ej. 'assets/audio/song.mp3').
- * @param {{ loop?: boolean, volume?: number, fadeInMs?: number }} [options]
- * @returns {{ play: () => Promise<boolean>, stop: () => void, element: HTMLAudioElement }}
+ * Política de Autoplay: los navegadores solo permiten iniciar audio dentro de
+ * un gesto del usuario (click / tap / tecla). `play()` debe llamarse desde ese
+ * handler. La promesa de `HTMLMediaElement.play()` se protege con try/catch
+ * para que un rechazo (autoplay bloqueado, archivo ausente) nunca rompa la
+ * experiencia visual.
+ *
+ * Uso:
+ *   const player = new AudioPlayer('assets/audio/golden-hour.mp3', {
+ *     loop: true, targetVolume: 0.4, fadeDuration: 2500,
+ *   });
+ *   document.addEventListener('pointerdown', () => player.play(), { once: true });
  */
-export function createAudio(src, { loop = true, volume = 0.6, fadeInMs = 1500 } = {}) {
-  const element = new Audio(src);
-  element.loop = loop;
-  element.preload = 'auto';
-  element.volume = 0;
 
-  let ready = true;
+const easeInOutSine = (t) => -(Math.cos(Math.PI * t) - 1) / 2;
 
-  element.addEventListener('error', () => {
-    ready = false;
-    console.warn(`[audio] No se pudo cargar "${src}". La animación continúa sin música.`);
-  });
-
+export default class AudioPlayer {
   /**
-   * Sube el volumen gradualmente hasta el valor objetivo.
-   * @param {number} target
+   * @param {string} src Ruta del archivo de audio.
+   * @param {object} [options]
+   * @param {boolean} [options.loop=true]          Reproducir en bucle.
+   * @param {number}  [options.targetVolume=0.4]   Volumen final del fade-in (0..1).
+   * @param {number}  [options.fadeDuration=2500]  Duración del fade-in en ms.
    */
-  function fadeIn(target) {
-    if (fadeInMs <= 0) {
-      element.volume = target;
-      return;
-    }
-    const start = performance.now();
-    const step = (now) => {
-      const t = Math.min((now - start) / fadeInMs, 1);
-      element.volume = target * t;
-      if (t < 1) requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
+  constructor(src, { loop = true, targetVolume = 0.4, fadeDuration = 2500 } = {}) {
+    this.src = src;
+    this.targetVolume = Math.min(Math.max(targetVolume, 0), 1);
+    this.fadeDuration = fadeDuration;
+
+    this.element = new Audio(src);
+    this.element.loop = loop;
+    this.element.preload = 'auto';
+    this.element.volume = 0;
+
+    this.available = true;
+    this.playing = false;
+    this._fadeFrame = 0;
+
+    this.element.addEventListener('error', () => {
+      this.available = false;
+      console.warn(`[AudioPlayer] No se pudo cargar "${src}". La experiencia continúa sin música.`);
+    });
+
+    this.element.addEventListener('ended', () => {
+      if (!loop) this.playing = false;
+    });
+  }
+
+  get isPlaying() {
+    return this.playing && !this.element.paused;
   }
 
   /**
-   * Inicia la reproducción. Llamar únicamente dentro de un handler de gesto
-   * de usuario para cumplir con las políticas de Autoplay.
-   * @returns {Promise<boolean>} true si empezó a sonar, false si fue bloqueado o falló.
+   * Inicia la reproducción con fade-in de 0 → targetVolume.
+   * Debe invocarse dentro de un gesto de usuario.
+   * @returns {Promise<boolean>} true si el audio empezó a sonar.
    */
-  async function play() {
-    if (!ready) return false;
+  async play() {
+    if (!this.available || this.playing) return this.playing;
+
+    this.element.volume = 0;
+
     try {
-      await element.play();
-      fadeIn(volume);
-      return true;
+      await this.element.play();
     } catch (err) {
-      console.warn('[audio] Reproducción bloqueada o fallida:', err?.message ?? err);
+      console.warn('[AudioPlayer] Reproducción bloqueada o fallida:', err?.message ?? err);
       return false;
     }
+
+    this.playing = true;
+    this.fadeTo(this.targetVolume, this.fadeDuration);
+    return true;
   }
 
-  function stop() {
-    element.pause();
-    element.currentTime = 0;
+  /**
+   * Transiciona el volumen actual hacia `volume` en `duration` ms.
+   * Usa requestAnimationFrame para una curva suave (easeInOutSine).
+   * @param {number} volume   Volumen destino (0..1).
+   * @param {number} duration Duración en ms.
+   * @returns {Promise<void>}
+   */
+  fadeTo(volume, duration = 1000) {
+    cancelAnimationFrame(this._fadeFrame);
+
+    const from = this.element.volume;
+    const to = Math.min(Math.max(volume, 0), 1);
+
+    if (duration <= 0 || from === to) {
+      this.element.volume = to;
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve) => {
+      const start = performance.now();
+      const step = (now) => {
+        const t = Math.min((now - start) / duration, 1);
+        this.element.volume = from + (to - from) * easeInOutSine(t);
+        if (t < 1) {
+          this._fadeFrame = requestAnimationFrame(step);
+        } else {
+          resolve();
+        }
+      };
+      this._fadeFrame = requestAnimationFrame(step);
+    });
   }
 
-  return { play, stop, element };
+  /** Pausa con fade-out corto y reinicia la pista. */
+  async stop(fadeOut = 600) {
+    if (!this.playing) return;
+    await this.fadeTo(0, fadeOut);
+    this.element.pause();
+    this.element.currentTime = 0;
+    this.playing = false;
+  }
 }
