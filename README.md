@@ -33,7 +33,7 @@ Inspirado en la tradición de regalar flores amarillas y en la canción
 
 1. Clona el repositorio:
    ```bash
-   git clone https://github.com/TU-USUARIO/flores-amarillas.git
+   git clone https://github.com/yhojanlinux1-droid/flores-amarillas.git
    ```
 
 2. Entra a la carpeta:
@@ -73,7 +73,7 @@ flores-amarillas/
 
 ## 🌐 Demo
 
-> 🔗 [Ver demo en vivo](https://TU-USUARIO.github.io/flores-amarillas/)
+> 🔗 [Ver demo en vivo](https://yhojanlinux1-droid.github.io/flores-amarillas/)
 
 *(Activa GitHub Pages en Settings → Pages → Branch: main)*
 
