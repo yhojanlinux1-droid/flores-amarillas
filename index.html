@@ -3,21 +3,32 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#04030d" />
   <title>Flores Amarillas</title>
   <meta name="description" content="Una experiencia interactiva: un ramo de flores amarillas que florece para ti." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Playfair+Display:ital,wght@0,400;1,400&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Cinzel:wght@400;500&display=swap"
     rel="stylesheet"
   />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
+  <!-- Capas decorativas de la galaxia (CSS puro) -->
+  <div class="nebula nebula--a" aria-hidden="true"></div>
+  <div class="nebula nebula--b" aria-hidden="true"></div>
+  <div class="ground-glow" aria-hidden="true"></div>
+
+  <!-- Estrellas parpadeantes y estrellas fugaces -->
   <canvas id="galaxy" aria-hidden="true"></canvas>
+  <!-- Ramo de flores y luciérnagas -->
   <canvas id="flowers" aria-hidden="true"></canvas>
 
+  <div class="vignette" aria-hidden="true"></div>
+
   <section id="intro" class="intro" aria-live="polite">
+    <p class="intro__eyebrow">para ti</p>
     <h1 class="intro__title">No eres espectadora</h1>
     <p class="intro__hint pulse">Toca para empezar</p>
   </section>

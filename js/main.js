@@ -1,18 +1,19 @@
 /**
  * Flores Amarillas — punto de entrada.
  *
- * Orquesta:
- *   - Fondo galaxia (estrellas parpadeantes) en #galaxy.
- *   - Ramo de 3 flores + partículas doradas en #flowers.
- *   - Transición de la pantalla de inicio y arranque del audio al primer gesto.
- *   - Bucle de render con requestAnimationFrame y canvas responsivo (resize + DPR).
+ *   - #galaxy  : estrellas por capas de profundidad + estrellas fugaces.
+ *   - #flowers : ramo de flores (Flower) + luciérnagas (Particle).
+ *   - Primer gesto: desvanece la intro, arranca la música con fade-in
+ *     (AudioPlayer) y hace crecer el ramo.
+ *   - requestAnimationFrame con dt acotado; canvas responsivo con DPR.
  */
 
 import Flower from './classes/Flower.js';
-import { createAudio } from './utils/audio.js';
+import Particle from './classes/Particle.js';
+import AudioPlayer from './utils/audio.js';
 
 // -----------------------------------------------------------------------------
-// Referencias DOM
+// DOM
 // -----------------------------------------------------------------------------
 
 const galaxyCanvas = document.getElementById('galaxy');
@@ -23,7 +24,7 @@ const galaxyCtx = galaxyCanvas.getContext('2d');
 const flowersCtx = flowersCanvas.getContext('2d');
 
 // -----------------------------------------------------------------------------
-// Estado global
+// Estado
 // -----------------------------------------------------------------------------
 
 const state = {
@@ -33,26 +34,70 @@ const state = {
   dpr: 1,
   lastTime: 0,
   time: 0,
+  isMobile: false,
 };
 
-const audio = createAudio('assets/audio/song.mp3', { loop: true, volume: 0.6 });
+const audio = new AudioPlayer('assets/audio/golden-hour.mp3', {
+  loop: true,
+  targetVolume: 0.4,
+  fadeDuration: 2500,
+});
+
+/** Viento global: suma de senos de baja frecuencia, compartido por flores y luciérnagas. */
+function wind(t) {
+  return Math.sin(t * 0.45) * 0.55 + Math.sin(t * 1.1 + 1.3) * 0.3 + Math.sin(t * 2.7 + 0.4) * 0.15;
+}
 
 // -----------------------------------------------------------------------------
-// Estrellas
+// Estrellas (tres capas de profundidad) + estrellas fugaces
 // -----------------------------------------------------------------------------
 
-const STAR_COUNT = 220;
+const STAR_LAYERS = [
+  { count: 160, rMin: 0.3, rMax: 0.8, alpha: 0.45, twinkle: [0.4, 1.2] },
+  { count: 90, rMin: 0.7, rMax: 1.4, alpha: 0.7, twinkle: [0.8, 2.0] },
+  { count: 26, rMin: 1.3, rMax: 2.1, alpha: 0.95, twinkle: [1.2, 3.0] },
+];
 
-/** Coordenadas normalizadas (0..1) para sobrevivir al resize sin recalcular. */
-const stars = Array.from({ length: STAR_COUNT }, () => ({
-  nx: Math.random(),
-  ny: Math.random(),
-  r: 0.4 + Math.random() * 1.4,
-  alpha: 0.3 + Math.random() * 0.7,
-  twinkleSpeed: 0.6 + Math.random() * 2.2,
-  phase: Math.random() * Math.PI * 2,
-  warm: Math.random() < 0.18, // algunas estrellas con tono dorado
-}));
+const stars = STAR_LAYERS.flatMap((layer) =>
+  Array.from({ length: layer.count }, () => ({
+    nx: Math.random(),
+    ny: Math.random(),
+    r: layer.rMin + Math.random() * (layer.rMax - layer.rMin),
+    alpha: layer.alpha * (0.6 + Math.random() * 0.4),
+    twinkleSpeed: layer.twinkle[0] + Math.random() * (layer.twinkle[1] - layer.twinkle[0]),
+    phase: Math.random() * Math.PI * 2,
+    warm: Math.random() < 0.2,
+  }))
+);
+
+/** @type {{x:number,y:number,vx:number,vy:number,life:number,maxLife:number}|null} */
+let shootingStar = null;
+let nextShootingIn = 4 + Math.random() * 5;
+
+function updateShootingStar(dt) {
+  if (shootingStar) {
+    shootingStar.life += dt;
+    shootingStar.x += shootingStar.vx * dt;
+    shootingStar.y += shootingStar.vy * dt;
+    if (shootingStar.life >= shootingStar.maxLife) shootingStar = null;
+    return;
+  }
+  nextShootingIn -= dt;
+  if (nextShootingIn <= 0) {
+    const fromLeft = Math.random() < 0.5;
+    const speed = 700 + Math.random() * 500;
+    const angle = (fromLeft ? 1 : -1) * (0.25 + Math.random() * 0.3);
+    shootingStar = {
+      x: fromLeft ? -20 : state.width + 20,
+      y: state.height * (0.05 + Math.random() * 0.4),
+      vx: Math.cos(angle) * speed * (fromLeft ? 1 : -1),
+      vy: Math.abs(Math.sin(angle)) * speed,
+      life: 0,
+      maxLife: 0.9 + Math.random() * 0.5,
+    };
+    nextShootingIn = 6 + Math.random() * 6;
+  }
+}
 
 function drawStars(ctx, time) {
   ctx.clearRect(0, 0, state.width, state.height);
@@ -64,154 +109,80 @@ function drawStars(ctx, time) {
     const y = s.ny * state.height;
 
     ctx.beginPath();
-    ctx.fillStyle = s.warm
-      ? `rgba(255, 224, 150, ${alpha})`
-      : `rgba(235, 240, 255, ${alpha})`;
+    ctx.fillStyle = s.warm ? `rgba(255, 226, 160, ${alpha})` : `rgba(230, 236, 255, ${alpha})`;
     ctx.arc(x, y, s.r, 0, Math.PI * 2);
     ctx.fill();
 
-    // Halo sutil en las estrellas más grandes.
-    if (s.r > 1.4) {
+    if (s.r > 1.3) {
+      // Halo y destello en cruz para las estrellas grandes.
       ctx.beginPath();
-      ctx.fillStyle = s.warm
-        ? `rgba(255, 224, 150, ${alpha * 0.18})`
-        : `rgba(200, 215, 255, ${alpha * 0.18})`;
-      ctx.arc(x, y, s.r * 3.2, 0, Math.PI * 2);
+      ctx.fillStyle = s.warm ? `rgba(255, 226, 160, ${alpha * 0.16})` : `rgba(200, 215, 255, ${alpha * 0.16})`;
+      ctx.arc(x, y, s.r * 3.5, 0, Math.PI * 2);
       ctx.fill();
+
+      ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.35})`;
+      ctx.lineWidth = 0.6;
+      const len = s.r * 4 * twinkle;
+      ctx.beginPath();
+      ctx.moveTo(x - len, y);
+      ctx.lineTo(x + len, y);
+      ctx.moveTo(x, y - len);
+      ctx.lineTo(x, y + len);
+      ctx.stroke();
     }
   }
+
+  if (shootingStar) {
+    const s = shootingStar;
+    const t = s.life / s.maxLife;
+    const fade = t < 0.2 ? t / 0.2 : 1 - (t - 0.2) / 0.8;
+    const tailLen = 140;
+    const dirLen = Math.hypot(s.vx, s.vy) || 1;
+    const tx = s.x - (s.vx / dirLen) * tailLen;
+    const ty = s.y - (s.vy / dirLen) * tailLen;
+
+    const grad = ctx.createLinearGradient(s.x, s.y, tx, ty);
+    grad.addColorStop(0, `rgba(255, 245, 220, ${0.9 * fade})`);
+    grad.addColorStop(1, 'rgba(255, 245, 220, 0)');
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 1.6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(tx, ty);
+    ctx.stroke();
+  }
 }
 
 // -----------------------------------------------------------------------------
-// Partículas doradas
+// Ramo
 // -----------------------------------------------------------------------------
 
-const MAX_PARTICLES = 320;
-
-/**
- * Sprite de resplandor pre-renderizado. Dibujar cientos de partículas con
- * shadowBlur por frame es caro; un drawImage de un sprite con gradiente
- * radial da el mismo efecto a una fracción del coste.
- */
-const GLOW_SPRITE_SIZE = 32;
-const glowSprite = (() => {
-  const c = document.createElement('canvas');
-  c.width = c.height = GLOW_SPRITE_SIZE;
-  const g = c.getContext('2d');
-  const half = GLOW_SPRITE_SIZE / 2;
-  const grad = g.createRadialGradient(half, half, 0, half, half, half);
-  grad.addColorStop(0, 'rgba(255, 240, 180, 1)');
-  grad.addColorStop(0.25, 'rgba(255, 220, 110, 0.9)');
-  grad.addColorStop(0.6, 'rgba(255, 200, 80, 0.25)');
-  grad.addColorStop(1, 'rgba(255, 200, 80, 0)');
-  g.fillStyle = grad;
-  g.fillRect(0, 0, GLOW_SPRITE_SIZE, GLOW_SPRITE_SIZE);
-  return c;
-})();
-
-class Particle {
-  constructor(x, y, radius) {
-    const angle = Math.random() * Math.PI * 2;
-    const dist = radius * (0.4 + Math.random() * 0.8);
-    const speed = 8 + Math.random() * 22;
-
-    this.x = x + Math.cos(angle) * dist;
-    this.y = y + Math.sin(angle) * dist;
-    this.vx = Math.cos(angle) * speed * 0.6;
-    this.vy = Math.sin(angle) * speed * 0.6 - 14; // tendencia a subir
-    this.life = 0;
-    this.maxLife = 1.6 + Math.random() * 1.8;
-    this.size = 1 + Math.random() * 2.2;
-    this.drift = Math.random() * Math.PI * 2;
-  }
-
-  get alive() {
-    return this.life < this.maxLife;
-  }
-
-  update(dt) {
-    this.life += dt;
-    this.drift += dt * 2;
-    this.x += (this.vx + Math.sin(this.drift) * 6) * dt;
-    this.y += this.vy * dt;
-    this.vy -= 6 * dt; // ligera flotación ascendente
-  }
-
-  draw(ctx) {
-    const t = this.life / this.maxLife;
-    // Aparece rápido, se desvanece lento.
-    const alpha = t < 0.15 ? t / 0.15 : 1 - (t - 0.15) / 0.85;
-    // El sprite incluye el halo, por eso se dibuja ~4x el tamaño del núcleo.
-    const size = this.size * (1 - t * 0.4) * 4;
-
-    ctx.globalAlpha = alpha;
-    ctx.drawImage(glowSprite, this.x - size / 2, this.y - size / 2, size, size);
-  }
-}
-
-/** @type {Particle[]} */
-let particles = [];
-
-function emitParticles(flowers) {
-  for (const flower of flowers) {
-    if (!flower.isOpen || particles.length >= MAX_PARTICLES) continue;
-    const head = flower.getHeadPosition();
-    const count = Math.random() < 0.6 ? 1 : 2;
-    for (let i = 0; i < count; i++) {
-      particles.push(new Particle(head.x, head.y, head.radius));
-    }
-  }
-}
-
-function updateParticles(dt) {
-  for (const p of particles) p.update(dt);
-  particles = particles.filter((p) => p.alive);
-}
-
-function drawParticles(ctx) {
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  for (const p of particles) p.draw(ctx);
-  ctx.restore();
-}
-
-// -----------------------------------------------------------------------------
-// Ramo de flores
-// -----------------------------------------------------------------------------
-
-/** Definición relativa del ramo; se convierte a píxeles en layoutFlowers(). */
+/** Definición relativa del ramo; se convierte a píxeles en flowerLayout(). */
 const BOUQUET = [
-  { offsetX: -0.12, heightRatio: 0.4, delay: 0.0, curve: -0.6, petalCount: 9 },
-  { offsetX: 0.0, heightRatio: 0.5, delay: 0.45, curve: 0.05, petalCount: 10 },
-  { offsetX: 0.12, heightRatio: 0.42, delay: 0.9, curve: 0.6, petalCount: 9 },
+  { offsetX: -0.13, heightRatio: 0.42, delay: 0.0, curve: -0.65, seed: 3 },
+  { offsetX: 0.0, heightRatio: 0.54, delay: 0.6, curve: 0.08, seed: 7 },
+  { offsetX: 0.13, heightRatio: 0.45, delay: 1.2, curve: 0.65, seed: 11 },
 ];
 
 /** @type {Flower[]} */
 let flowers = [];
 
 function flowerLayout(def) {
-  // En pantallas muy estrechas se abre un poco más el ramo para que no se solapen.
   const spread = state.width < 520 ? 1.5 : 1;
   const minDim = Math.min(state.width, state.height);
   const stemHeight = def.heightRatio * state.height;
-  const petalRadius = Math.max(22, Math.min(46, minDim * 0.075));
+  const petalRadius = Math.max(26, Math.min(58, minDim * 0.085)) * (def.heightRatio / 0.5);
 
-  // La cabeza queda desplazada respecto a la base por la curvatura del tallo
-  // (misma fórmula que Flower.resize). Se limita la base para que la cabeza
-  // completa quepa siempre dentro del viewport.
-  const tipOffset = def.curve * stemHeight * 0.18;
-  const headScale = Math.max(0.55, Math.min(1.4, stemHeight / 320));
-  const margin = petalRadius * headScale * 1.2 + 12;
+  // Desplazamiento de la cabeza por la curvatura (misma fórmula que Flower.resize)
+  // más un margen de viento; se limita la base para que la cabeza quepa siempre.
+  const tipOffset = def.curve * stemHeight * 0.22;
+  const margin = petalRadius * 1.15 + stemHeight * 0.05 + 12;
 
   let x = state.width / 2 + def.offsetX * spread * state.width;
   x = Math.min(Math.max(x, margin - tipOffset), state.width - margin - tipOffset);
 
-  return {
-    x,
-    baseY: state.height + 6,
-    stemHeight,
-    petalRadius,
-  };
+  return { x, baseY: state.height + 8, stemHeight, petalRadius };
 }
 
 function createFlowers() {
@@ -221,17 +192,71 @@ function createFlowers() {
         ...flowerLayout(def),
         delay: def.delay,
         curve: def.curve,
-        petalCount: def.petalCount,
+        seed: def.seed,
       })
   );
 }
 
 function layoutFlowers() {
   flowers.forEach((flower, i) => {
-    const layout = flowerLayout(BOUQUET[i]);
-    flower.petalRadius = layout.petalRadius;
-    flower.resize(layout.x, layout.baseY, layout.stemHeight);
+    const l = flowerLayout(BOUQUET[i]);
+    flower.resize(l.x, l.baseY, l.stemHeight, l.petalRadius);
   });
+}
+
+// -----------------------------------------------------------------------------
+// Luciérnagas
+// -----------------------------------------------------------------------------
+
+/** @type {Particle[]} */
+let fireflies = [];
+let fireflyTarget = 0;
+
+function fireflyCount() {
+  return state.isMobile ? 40 : 70;
+}
+
+function spawnFireflies(dt) {
+  const openHeads = flowers.filter((f) => f.isOpen).map((f) => f.getHeadPosition());
+  if (openHeads.length === 0) return;
+
+  // Aparecen de forma gradual (no todas a la vez).
+  fireflyTarget = Math.min(fireflyCount(), fireflyTarget + dt * 22);
+  const scale = state.isMobile ? 0.8 : 1;
+  while (fireflies.length < Math.floor(fireflyTarget)) {
+    const head = openHeads[Math.floor(Math.random() * openHeads.length)];
+    fireflies.push(new Particle(head, scale));
+  }
+}
+
+function nearestHead(p, heads) {
+  let best = null;
+  let bestD = Infinity;
+  for (const h of heads) {
+    const d = (h.x - p.x) ** 2 + (h.y - p.y) ** 2;
+    if (d < bestD) {
+      bestD = d;
+      best = h;
+    }
+  }
+  return best;
+}
+
+function updateFireflies(dt, w) {
+  if (fireflies.length === 0) return;
+  const heads = flowers.filter((f) => f.bloomProgress > 0).map((f) => f.getHeadPosition());
+  const bounds = { width: state.width, height: state.height };
+  for (const p of fireflies) {
+    p.update(dt, state.time, nearestHead(p, heads), w, bounds);
+  }
+}
+
+function drawFireflies(ctx) {
+  if (fireflies.length === 0) return;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const p of fireflies) p.draw(ctx);
+  ctx.restore();
 }
 
 // -----------------------------------------------------------------------------
@@ -242,6 +267,7 @@ function resize() {
   state.dpr = Math.min(window.devicePixelRatio || 1, 2);
   state.width = window.innerWidth;
   state.height = window.innerHeight;
+  state.isMobile = state.width < 700 || (navigator.maxTouchPoints > 0 && state.width < 1024);
 
   for (const [canvas, ctx] of [
     [galaxyCanvas, galaxyCtx],
@@ -271,23 +297,28 @@ function start() {
   if (state.started) return;
   state.started = true;
 
-  // 1. Desvanecer textos de inicio.
+  // 1. Desvanecer la intro.
   intro.classList.add('hidden');
+  document.body.classList.add('started');
+  document.body.style.cursor = 'default';
 
-  // 2. Reproducir audio dentro del gesto de usuario (política de Autoplay).
+  // 2. Música: debe iniciarse dentro del gesto (política de Autoplay).
+  //    AudioPlayer hace el fade-in 0 -> 0.4 en 2.5 s.
   audio.play();
 
-  // 3. Instanciar el ramo; empieza a crecer en el siguiente frame.
+  // 3. Ramo: empieza a crecer en el siguiente frame.
   createFlowers();
-  document.body.style.cursor = 'default';
 }
 
 document.addEventListener('pointerdown', start, { once: true });
-// Fallback para navegadores sin Pointer Events.
 document.addEventListener('touchstart', start, { once: true, passive: true });
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' || e.key === ' ') start();
-}, { once: true });
+document.addEventListener(
+  'keydown',
+  (e) => {
+    if (e.key === 'Enter' || e.key === ' ') start();
+  },
+  { once: true }
+);
 
 // -----------------------------------------------------------------------------
 // Bucle principal
@@ -298,17 +329,19 @@ function loop(now) {
   state.lastTime = now;
   state.time += dt;
 
+  updateShootingStar(dt);
   drawStars(galaxyCtx, state.time);
 
   if (state.started) {
+    const w = wind(state.time);
+
+    for (const flower of flowers) flower.update(dt, w);
+    spawnFireflies(dt);
+    updateFireflies(dt, w);
+
     flowersCtx.clearRect(0, 0, state.width, state.height);
-
-    for (const flower of flowers) flower.update(dt);
-    emitParticles(flowers);
-    updateParticles(dt);
-
-    drawParticles(flowersCtx);
     for (const flower of flowers) flower.draw(flowersCtx);
+    drawFireflies(flowersCtx);
   }
 
   requestAnimationFrame(loop);

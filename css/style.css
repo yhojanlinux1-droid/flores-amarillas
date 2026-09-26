@@ -1,16 +1,19 @@
 /* ==========================================================================
-   Flores Amarillas — estilos base
+   Flores Amarillas — estilos
+   Fondo de galaxia profunda en CSS puro + pantalla de inicio.
    ========================================================================== */
 
 :root {
-  --bg-deep: #03030b;
-  --bg-mid: #0b0a2a;
-  --bg-glow: #1a1345;
+  --bg-deep: #03020a;
+  --bg-mid: #0a0820;
+  --bg-violet: #1b1240;
+  --bg-magenta: #2c1048;
+  --bg-teal: #0a2438;
   --gold: #ffd23f;
-  --gold-soft: rgba(255, 210, 63, 0.75);
-  --text: #f5f1e6;
-  --font-title: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-  --font-body: 'Playfair Display', 'Cormorant Garamond', Georgia, serif;
+  --gold-soft: rgba(255, 210, 63, 0.7);
+  --text: #f7f2e4;
+  --font-title: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  --font-caps: 'Cinzel', 'Cormorant Garamond', Georgia, serif;
 }
 
 *,
@@ -29,12 +32,14 @@ body {
 }
 
 body {
-  background:
-    radial-gradient(ellipse at 30% 20%, var(--bg-glow) 0%, transparent 55%),
-    radial-gradient(ellipse at 75% 80%, #2a1140 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 50%, var(--bg-mid) 0%, var(--bg-deep) 80%);
+  background-color: var(--bg-deep);
+  background-image:
+    radial-gradient(ellipse 70% 55% at 22% 18%, rgba(48, 34, 110, 0.55) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 80% 25%, rgba(20, 60, 90, 0.45) 0%, transparent 60%),
+    radial-gradient(ellipse 80% 60% at 70% 85%, rgba(70, 22, 90, 0.5) 0%, transparent 60%),
+    radial-gradient(ellipse 120% 90% at 50% 50%, var(--bg-mid) 0%, var(--bg-deep) 85%);
   color: var(--text);
-  font-family: var(--font-body);
+  font-family: var(--font-title);
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
@@ -42,22 +47,72 @@ body {
   cursor: pointer;
 }
 
-/* Canvases a pantalla completa ------------------------------------------- */
+/* Capas decorativas ------------------------------------------------------- */
 
+.nebula,
+.ground-glow,
+.vignette,
 canvas {
   position: fixed;
   inset: 0;
   width: 100%;
   height: 100%;
   display: block;
+  pointer-events: none;
+}
+
+/* Nebulosas: manchas de color muy difusas que derivan lentamente. */
+.nebula {
+  z-index: 0;
+  mix-blend-mode: screen;
+  filter: blur(60px) saturate(1.2);
+  opacity: 0.75;
+  will-change: transform;
+}
+
+.nebula--a {
+  background:
+    radial-gradient(ellipse 35% 28% at 30% 35%, rgba(120, 70, 200, 0.35) 0%, transparent 70%),
+    radial-gradient(ellipse 28% 22% at 68% 62%, rgba(200, 80, 140, 0.22) 0%, transparent 70%);
+  animation: drift-a 70s ease-in-out infinite alternate;
+}
+
+.nebula--b {
+  background:
+    radial-gradient(ellipse 30% 26% at 72% 28%, rgba(40, 140, 190, 0.28) 0%, transparent 70%),
+    radial-gradient(ellipse 22% 18% at 20% 75%, rgba(255, 170, 60, 0.14) 0%, transparent 70%);
+  animation: drift-b 90s ease-in-out infinite alternate;
+}
+
+/* Halo cálido en la base del ramo. */
+.ground-glow {
+  z-index: 1;
+  background: radial-gradient(
+    ellipse 55% 22% at 50% 102%,
+    rgba(255, 190, 80, 0.16) 0%,
+    rgba(255, 190, 80, 0.05) 45%,
+    transparent 75%
+  );
+  opacity: 0;
+  transition: opacity 3s ease 1.5s;
+}
+
+body.started .ground-glow {
+  opacity: 1;
+}
+
+/* Viñeta oscura en los bordes para profundidad. */
+.vignette {
+  z-index: 3;
+  background: radial-gradient(ellipse 80% 80% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
 }
 
 #galaxy {
-  z-index: 0;
+  z-index: 1;
 }
 
 #flowers {
-  z-index: 1;
+  z-index: 2;
 }
 
 /* Pantalla de inicio ------------------------------------------------------ */
@@ -65,69 +120,82 @@ canvas {
 .intro {
   position: fixed;
   inset: 0;
-  z-index: 2;
+  z-index: 4;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1.75rem;
+  gap: 1.4rem;
   padding: 2rem;
   text-align: center;
   opacity: 1;
-  transition: opacity 0.9s ease, visibility 0.9s ease;
+  transition: opacity 1.1s ease, visibility 1.1s ease, transform 1.1s ease;
 }
 
 .intro.hidden {
   opacity: 0;
   visibility: hidden;
+  transform: translateY(-14px) scale(1.02);
   pointer-events: none;
+}
+
+.intro__eyebrow {
+  font-family: var(--font-caps);
+  font-size: clamp(0.65rem, 1.4vw, 0.85rem);
+  letter-spacing: 0.55em;
+  text-transform: uppercase;
+  color: var(--gold-soft);
+  opacity: 0;
+  animation: fade-up 1.4s ease-out 0.2s both;
 }
 
 .intro__title {
   font-family: var(--font-title);
-  font-weight: 400;
+  font-weight: 300;
   font-style: italic;
-  font-size: clamp(2.2rem, 7vw, 5rem);
-  letter-spacing: 0.06em;
-  line-height: 1.1;
+  font-size: clamp(2.4rem, 7.5vw, 5.6rem);
+  line-height: 1.05;
   color: var(--text);
   text-shadow:
-    0 0 18px rgba(255, 210, 63, 0.35),
-    0 0 48px rgba(255, 210, 63, 0.15);
-  animation: rise 1.6s ease-out both;
+    0 0 24px rgba(255, 210, 63, 0.28),
+    0 0 70px rgba(255, 210, 63, 0.12);
+  animation: reveal 2.2s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 
 .intro__hint {
-  font-family: var(--font-body);
-  font-size: clamp(0.9rem, 2.2vw, 1.25rem);
-  letter-spacing: 0.3em;
+  margin-top: 0.6rem;
+  font-family: var(--font-caps);
+  font-size: clamp(0.7rem, 1.8vw, 0.95rem);
+  letter-spacing: 0.38em;
   text-transform: uppercase;
   color: var(--gold-soft);
+  opacity: 0;
+  animation:
+    fade-up 1.2s ease-out 1.4s both,
+    pulse 2.6s ease-in-out 2.6s infinite;
 }
 
 /* Animaciones ------------------------------------------------------------- */
 
-.pulse {
-  animation: pulse 2.2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%,
+@keyframes reveal {
+  0% {
+    opacity: 0;
+    letter-spacing: 0.35em;
+    filter: blur(8px);
+    transform: translateY(10px);
+  }
   100% {
-    opacity: 0.35;
-    transform: scale(1);
-  }
-  50% {
     opacity: 1;
-    transform: scale(1.06);
-    text-shadow: 0 0 14px var(--gold-soft);
+    letter-spacing: 0.04em;
+    filter: blur(0);
+    transform: translateY(0);
   }
 }
 
-@keyframes rise {
+@keyframes fade-up {
   from {
     opacity: 0;
-    transform: translateY(18px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -135,9 +203,42 @@ canvas {
   }
 }
 
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    text-shadow: none;
+  }
+  50% {
+    opacity: 1;
+    text-shadow: 0 0 16px var(--gold-soft);
+  }
+}
+
+@keyframes drift-a {
+  from {
+    transform: translate3d(-3%, -2%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(4%, 3%, 0) scale(1.12);
+  }
+}
+
+@keyframes drift-b {
+  from {
+    transform: translate3d(3%, 2%, 0) scale(1.08);
+  }
+  to {
+    transform: translate3d(-4%, -3%, 0) scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .pulse,
-  .intro__title {
+  .nebula,
+  .intro__title,
+  .intro__eyebrow,
+  .intro__hint {
     animation: none;
+    opacity: 1;
   }
 }
